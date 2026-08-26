@@ -1,4 +1,4 @@
-import { readdir, writeFile, stat } from 'node:fs/promises';
+import { readdir, writeFile, readFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 
 const snapshot = async () => {
@@ -20,24 +20,33 @@ const snapshot = async () => {
 
       if (dirent.isDirectory()) {
         if (ignoredDirs.has(dirent.name)) continue;
+
+        const relativeDirPath = relative(rootPath, fullPath).split(sep).join('/');
+        entries.push({
+          path: relativeDirPath,
+          type: 'directory',
+        });
+
         await scanDirectory(fullPath);
       } 
       else if (dirent.isFile() || dirent.isSymbolicLink()) {
-        const fileStats = await stat(fullPath);
-        
-        const relativePath = relative(rootPath, fullPath).split(sep).join('/');
+        const fileBuffer = await readFile(fullPath);
+        const fileContentBase64 = fileBuffer.toString('base64');
+
+        const relativeFilePath = relative(rootPath, fullPath).split(sep).join('/');
 
         entries.push({
-          path: relativePath,
-          size: fileStats.size,
-          mtimeMs: fileStats.mtimeMs, 
-          isSymbolicLink: dirent.isSymbolicLink()
+          path: relativeFilePath,
+          type: 'file',
+          size: fileBuffer.length,
+          content: fileContentBase64,
         });
       }
     }
   };
 
   await scanDirectory(rootPath);
+  
   const snapshotData = {
     rootPath,
     entries,
